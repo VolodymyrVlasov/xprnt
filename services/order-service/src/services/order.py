@@ -9,28 +9,39 @@ from src.repository.cart import cart_repo
 from src.repository.order import order_number_repo, order_repo
 from src.schemas.order import OrderCreate, OrderStatusUpdate
 
-# Role-based status transitions: maps current status → allowed next statuses per role
+# Role-based status transitions
+# Each role maps current status → list of allowed next statuses
 _STATUS_TRANSITIONS: dict[str, dict[OrderStatus, list[OrderStatus]]] = {
     "manager": {
-        OrderStatus.pending: [OrderStatus.paid, OrderStatus.canceled],
-        OrderStatus.paid: [OrderStatus.execution, OrderStatus.canceled],
-        OrderStatus.execution: [OrderStatus.printing],
-        OrderStatus.printing: [OrderStatus.printed],
-        OrderStatus.printed: [OrderStatus.postprint],
-        OrderStatus.postprint: [OrderStatus.done, OrderStatus.waiting_delivery],
-        OrderStatus.waiting_delivery: [OrderStatus.shipped],
-        OrderStatus.shipped: [OrderStatus.successful, OrderStatus.returned],
-        OrderStatus.done: [],
-        OrderStatus.successful: [],
-        OrderStatus.canceled: [],
-        OrderStatus.returned: [],
+        OrderStatus.pending:          [OrderStatus.paid, OrderStatus.canceled],
+        OrderStatus.paid:             [OrderStatus.execution, OrderStatus.canceled],
+        OrderStatus.execution:        [OrderStatus.printing, OrderStatus.canceled],
+        OrderStatus.printing:         [OrderStatus.printed, OrderStatus.canceled],
+        OrderStatus.printed:          [OrderStatus.postprint, OrderStatus.canceled],
+        OrderStatus.postprint:        [OrderStatus.done, OrderStatus.waiting_delivery, OrderStatus.canceled],
+        OrderStatus.done:             [OrderStatus.successful, OrderStatus.waiting_delivery],
+        OrderStatus.waiting_delivery: [OrderStatus.shipped, OrderStatus.canceled],
+        OrderStatus.shipped:          [OrderStatus.successful, OrderStatus.returned],
+        OrderStatus.successful:       [],
+        OrderStatus.canceled:         [],
+        OrderStatus.returned:         [],
+    },
+    "prepress": {
+        OrderStatus.execution:  [OrderStatus.printing],
+        OrderStatus.printing:   [OrderStatus.printed],
+        # all other statuses: no transitions allowed
+        **{s: [] for s in OrderStatus if s not in (OrderStatus.execution, OrderStatus.printing)},
+    },
+    "postpress": {
+        OrderStatus.printed:    [OrderStatus.postprint],
+        OrderStatus.postprint:  [OrderStatus.done, OrderStatus.waiting_delivery],
+        **{s: [] for s in OrderStatus if s not in (OrderStatus.printed, OrderStatus.postprint)},
     },
     "admin": {s: list(OrderStatus) for s in OrderStatus},
 }
 
 
 async def create_order(db: AsyncSession, data: OrderCreate, current_user_id: uuid.UUID) -> Orders:
-    # Validate cart
     cart = await cart_repo.get_with_items(db, data.cart_id)
     if not cart:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart not found")
@@ -41,7 +52,6 @@ async def create_order(db: AsyncSession, data: OrderCreate, current_user_id: uui
     if await order_repo.get_by_cart(db, data.cart_id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Order already exists for this cart")
 
-    # Generate sequential order number
     order_num = await order_number_repo.create_number(db, created_by=current_user_id)
 
     from src.repository.user import user_repo
@@ -66,7 +76,6 @@ async def create_order(db: AsyncSession, data: OrderCreate, current_user_id: uui
         },
     )
 
-    # Mark cart as ordered
     await cart_repo.update(db, cart, {"status": CartStatus.ordered})
     return order
 
@@ -82,7 +91,7 @@ async def change_status(
     if data.status not in allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Role '{role}' cannot transition from '{order.status}' to '{data.status}'",
+            detail=f"Role '{role}' cannot change status from '{order.status}' to '{data.status}'",
         )
 
     return await order_repo.update(db, order, {"status": data.status})

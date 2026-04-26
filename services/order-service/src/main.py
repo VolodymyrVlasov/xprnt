@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,13 +7,20 @@ from sqlalchemy import text
 
 from src.database import engine
 from src.routes import auth, cart, categories, companies, orders, products, users
+from src.routes import comments, deliveries, payments, references
+from src.routes import price_multipliers, prices
+from src.seeds import seed_admin_user, seed_reference_data
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Verify DB connection on startup
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
+    await seed_reference_data()
+    await seed_admin_user()
+    logger.info("✅ xprnt order-service ready")
     yield
 
 
@@ -45,6 +53,12 @@ app.include_router(products.router, prefix=PREFIX)
 app.include_router(categories.router, prefix=PREFIX)
 app.include_router(cart.router, prefix=PREFIX)
 app.include_router(orders.router, prefix=PREFIX)
+app.include_router(references.router, prefix=PREFIX)
+app.include_router(prices.router, prefix=PREFIX)
+app.include_router(price_multipliers.router, prefix=PREFIX)
+app.include_router(deliveries.router, prefix=PREFIX)
+app.include_router(payments.router, prefix=PREFIX)
+app.include_router(comments.router, prefix=PREFIX)
 
 
 @app.get("/health", tags=["health"])
