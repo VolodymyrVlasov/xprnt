@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -25,7 +26,7 @@ class PriceCreate(BaseModel):
     fx_rate_used: Optional[Decimal] = None
     price_multiplier_id: Optional[uuid.UUID] = None
     values: Optional[list] = None
-    start_at: Optional[str] = None
+    start_at: Optional[datetime] = None
 
 
 class PriceResponse(BaseModel):
@@ -38,5 +39,5 @@ class PriceResponse(BaseModel):
     values: Optional[list] = None
     previous_price_id: Optional[uuid.UUID] = None
     next_price_id: Optional[uuid.UUID] = None
-    start_at: Optional[str] = None
-    finish_at: Optional[str] = None
+    start_at: Optional[datetime] = None
+    finish_at: Optional[datetime] = None

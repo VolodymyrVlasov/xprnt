@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -36,8 +37,8 @@ class OrderResponse(BaseModel):
     payment_id: Optional[uuid.UUID] = None
     delivery_id: Optional[uuid.UUID] = None
     manager_id: Optional[uuid.UUID] = None
-    finish_at: Optional[str] = None
-    done_at: Optional[str] = None
+    finish_at: Optional[datetime] = None
+    done_at: Optional[datetime] = None
 
 
 class SuperOrderCreate(BaseModel):
@@ -57,4 +58,4 @@ class SuperOrderResponse(BaseModel):
     total: Decimal
     currency: str
     invoice_number: Optional[str] = None
-    invoice_date: Optional[str] = None
+    invoice_date: Optional[datetime] = None

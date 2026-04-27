@@ -25,6 +25,12 @@ class Payments(TimestampMixin, Base):
     payment_type_id: Mapped[uuid.UUID] = mapped_column(
         "paymentTypeId", PG_UUID(as_uuid=True), ForeignKey("payment_types.id"), nullable=False
     )
+    order_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        "orderId",
+        PG_UUID(as_uuid=True),
+        ForeignKey("orders.id", use_alter=True, name="fk_payments_order_id"),
+        nullable=True,
+    )
     super_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         "superOrderId", PG_UUID(as_uuid=True), ForeignKey("super_orders.id"), nullable=True
     )

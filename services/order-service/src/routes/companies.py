@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.dependencies import get_current_user, get_db
+from src.dependencies import get_current_user, get_db, require_role
 from src.models.user import Users
 from src.repository.company import company_repo
 from src.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
@@ -25,7 +25,7 @@ async def list_companies(
 async def create_company(
     data: CompanyCreate,
     db: AsyncSession = Depends(get_db),
-    _: Users = Depends(get_current_user),
+    _: Users = Depends(require_role("manager", "admin")),
 ):
     existing = await company_repo.get_by_edrpou(db, data.edrpou_code)
     if existing:
@@ -50,7 +50,7 @@ async def update_company(
     company_id: uuid.UUID,
     data: CompanyUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Users = Depends(get_current_user),
+    _: Users = Depends(require_role("manager", "admin")),
 ):
     company = await company_repo.get(db, company_id)
     if not company:

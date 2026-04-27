@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, ForeignKey, Numeric, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -129,7 +130,9 @@ class BankRequisites(TimestampMixin, Base):
         "legalAddressId", PG_UUID(as_uuid=True), ForeignKey("addresses.id"), nullable=True
     )
     tax_status: Mapped[Optional[str]] = mapped_column("taxStatus", String, nullable=True)
-    finish_at: Mapped[Optional[str]] = mapped_column("finishAt", nullable=True)
+    finish_at: Mapped[Optional[datetime]] = mapped_column(
+        "finishAt", DateTime(timezone=True), nullable=True
+    )
     # update_author_id — FK to users.id, added with use_alter to avoid circular dep
     update_author_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         "updateAuthorId",

@@ -11,9 +11,11 @@ from src.models.user import Users
 from src.repository.comment import comment_repo
 from src.repository.delivery import delivery_repo
 from src.repository.order import order_repo
+from src.repository.order_path import order_path_repo
 from src.repository.payment import payment_repo
 from src.schemas.comment import CommentResponse
 from src.schemas.order import OrderCreate, OrderResponse, OrderStatusUpdate
+from src.schemas.order_path import OrderPathResponse
 from src.services.order import change_status, create_order
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -116,6 +118,18 @@ async def attach_payment(
         updates["status"] = OrderStatus.paid
 
     return await order_repo.update(db, order, updates)
+
+
+@router.get("/{order_id}/path", response_model=OrderPathResponse)
+async def get_order_path(
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: Users = Depends(require_role("manager", "prepress", "postpress", "admin")),
+):
+    obj = await order_path_repo.get_by_order(db, order_id)
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order path not found")
+    return obj
 
 
 @router.get("/{order_id}/comments", response_model=list[CommentResponse])

@@ -33,6 +33,7 @@ class PaymentResponse(BaseModel):
 
     id: uuid.UUID
     payment_type_id: uuid.UUID
+    order_id: Optional[uuid.UUID] = None
     super_order_id: Optional[uuid.UUID] = None
     amount: Decimal
     currency: str

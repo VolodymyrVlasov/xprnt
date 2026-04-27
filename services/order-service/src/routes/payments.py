@@ -31,6 +31,7 @@ async def register_payment(
         db,
         {
             "payment_type_id": data.payment_type_id,
+            "order_id": data.order_id,
             "super_order_id": data.super_order_id,
             "amount": data.amount,
             "currency": data.currency,
@@ -57,12 +58,7 @@ async def list_payments(
     if super_order_id:
         return await payment_repo.get_by_super_order(db, super_order_id)
     if order_id:
-        # Payments don't have a direct order_id column — find via orders.payment_id
-        order = await order_repo.get(db, order_id)
-        if not order or not order.payment_id:
-            return []
-        payment = await payment_repo.get(db, order.payment_id)
-        return [payment] if payment else []
+        return await payment_repo.get_by_order_id(db, order_id)
     return await payment_repo.get_all(db, limit=50)
 
 

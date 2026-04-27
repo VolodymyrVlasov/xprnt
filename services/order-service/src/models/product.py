@@ -1,10 +1,12 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from src.database import Base
 from src.models.base import TimestampMixin
@@ -61,8 +63,12 @@ class Prices(TimestampMixin, Base):
     next_price_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         "nextPriceId", PG_UUID(as_uuid=True), ForeignKey("prices.id"), nullable=True
     )
-    start_at: Mapped[Optional[str]] = mapped_column("startAt", nullable=True)
-    finish_at: Mapped[Optional[str]] = mapped_column("finishAt", nullable=True)
+    start_at: Mapped[datetime] = mapped_column(
+        "startAt", DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    finish_at: Mapped[Optional[datetime]] = mapped_column(
+        "finishAt", DateTime(timezone=True), nullable=True
+    )
 
 
 class Products(TimestampMixin, Base):

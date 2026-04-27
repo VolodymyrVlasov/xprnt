@@ -1,11 +1,13 @@
 import enum
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, Numeric, String, Text
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from src.database import Base
 from src.models.base import TimestampMixin
@@ -42,7 +44,9 @@ class OrderNumbers(Base):
     __tablename__ = "order_numbers"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    created_at: Mapped[Optional[str]] = mapped_column("createdAt", nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        "createdAt", DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
         "createdBy", PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -79,14 +83,24 @@ class SuperOrders(TimestampMixin, Base):
         "paymentTypeId", PG_UUID(as_uuid=True), ForeignKey("payment_types.id"), nullable=False
     )
     currency: Mapped[str] = mapped_column(String(3), default="UAH", nullable=False)
-    billing_period_start: Mapped[Optional[str]] = mapped_column("billingPeriodStart", nullable=True)
-    billing_period_end: Mapped[Optional[str]] = mapped_column("billingPeriodEnd", nullable=True)
+    billing_period_start: Mapped[Optional[datetime]] = mapped_column(
+        "billingPeriodStart", DateTime(timezone=True), nullable=True
+    )
+    billing_period_end: Mapped[Optional[datetime]] = mapped_column(
+        "billingPeriodEnd", DateTime(timezone=True), nullable=True
+    )
     invoice_number: Mapped[Optional[str]] = mapped_column("invoiceNumber", String, nullable=True)
-    invoice_date: Mapped[Optional[str]] = mapped_column("invoiceDate", nullable=True)
+    invoice_date: Mapped[Optional[datetime]] = mapped_column(
+        "invoiceDate", DateTime(timezone=True), nullable=True
+    )
     status: Mapped[SuperOrderStatus] = mapped_column(
         Enum(SuperOrderStatus, name="super_order_status"), default=SuperOrderStatus.open, nullable=False
     )
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+
+    orders: Mapped[list["Orders"]] = relationship(
+        "Orders", foreign_keys="Orders.super_order_id", lazy="selectin"
+    )
 
 
 class OrderPaths(TimestampMixin, Base):
@@ -148,7 +162,11 @@ class Orders(TimestampMixin, Base):
     cart_id: Mapped[uuid.UUID] = mapped_column(
         "cartId", PG_UUID(as_uuid=True), ForeignKey("cart.id"), unique=True, nullable=False
     )
-    finish_at: Mapped[Optional[str]] = mapped_column("finishAt", nullable=True)
-    done_at: Mapped[Optional[str]] = mapped_column("doneAt", nullable=True)
+    finish_at: Mapped[Optional[datetime]] = mapped_column(
+        "finishAt", DateTime(timezone=True), nullable=True
+    )
+    done_at: Mapped[Optional[datetime]] = mapped_column(
+        "doneAt", DateTime(timezone=True), nullable=True
+    )
 
     cart: Mapped["Cart"] = relationship("Cart", foreign_keys=[cart_id], lazy="selectin")  # type: ignore[name-defined]

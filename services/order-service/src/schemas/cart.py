@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -41,6 +42,7 @@ class CartItemProductResponse(BaseModel):
     amount: Decimal
     price: Decimal
     price_total: Decimal
+    priced_at: Optional[datetime] = None
 
 
 class CartItemResponse(BaseModel):
@@ -55,6 +57,7 @@ class CartItemResponse(BaseModel):
     amount: Decimal
     unit_price: Decimal
     total_price: Decimal
+    priced_at: Optional[datetime] = None
     design_id: Optional[uuid.UUID] = None
     products: list[CartItemProductResponse] = []
 

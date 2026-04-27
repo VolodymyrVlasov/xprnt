@@ -18,5 +18,11 @@ class PaymentRepository(BaseRepository[Payments]):
         )
         return list(result.scalars().all())
 
+    async def get_by_order_id(self, db: AsyncSession, order_id: uuid.UUID) -> list[Payments]:
+        result = await db.execute(
+            select(Payments).where(Payments.order_id == order_id)
+        )
+        return list(result.scalars().all())
+
 
 payment_repo = PaymentRepository()

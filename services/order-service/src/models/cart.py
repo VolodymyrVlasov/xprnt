@@ -1,9 +1,10 @@
 import enum
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Enum, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -59,7 +60,9 @@ class CartItems(TimestampMixin, Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=False)
     unit_price: Mapped[Decimal] = mapped_column("unitPrice", Numeric(10, 2), nullable=False)
     total_price: Mapped[Decimal] = mapped_column("totalPrice", Numeric(10, 2), nullable=False)
-    priced_at: Mapped[Optional[str]] = mapped_column("pricedAt", nullable=True)
+    priced_at: Mapped[Optional[datetime]] = mapped_column(
+        "pricedAt", DateTime(timezone=True), nullable=True
+    )
     design_id: Mapped[Optional[uuid.UUID]] = mapped_column("designId", PG_UUID(as_uuid=True), nullable=True)
 
     cart: Mapped["Cart"] = relationship("Cart", back_populates="items")
@@ -82,7 +85,9 @@ class CartItemProducts(TimestampMixin, Base):
         "priceId", PG_UUID(as_uuid=True), ForeignKey("prices.id"), nullable=True
     )
     price_tier_qty: Mapped[Optional[int]] = mapped_column("priceTierQty", nullable=True)
-    priced_at: Mapped[Optional[str]] = mapped_column("pricedAt", nullable=True)
+    priced_at: Mapped[Optional[datetime]] = mapped_column(
+        "pricedAt", DateTime(timezone=True), nullable=True
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
