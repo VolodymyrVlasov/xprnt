@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -30,7 +31,6 @@ async def add_item(db: AsyncSession, cart_id: uuid.UUID, data: CartItemCreate) -
     if cart.status != CartStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cart is not active")
 
-    total_price = data.unit_price * data.amount
     item = await cart_item_repo.create(
         db,
         {
@@ -41,7 +41,8 @@ async def add_item(db: AsyncSession, cart_id: uuid.UUID, data: CartItemCreate) -
             "short_name": data.short_name,
             "amount": data.amount,
             "unit_price": data.unit_price,
-            "total_price": total_price,
+            "total_price": data.total_price or data.unit_price * data.amount,
+            "priced_at": data.priced_at or datetime.utcnow(),
             "design_id": data.design_id,
         },
     )
@@ -52,10 +53,14 @@ async def add_item(db: AsyncSession, cart_id: uuid.UUID, data: CartItemCreate) -
             {
                 "cart_item_id": item.id,
                 "product_id": prod.product_id,
+                "price_id": prod.price_id,
+                "price_tier_qty": prod.price_tier_qty,
+                "priced_at": prod.priced_at or datetime.utcnow(),
                 "name": prod.name,
+                "short_name": prod.short_name,
                 "amount": prod.amount,
                 "price": prod.price,
-                "price_total": prod.price * prod.amount,
+                "price_total": prod.price_total or prod.price * prod.amount,
             },
         )
 

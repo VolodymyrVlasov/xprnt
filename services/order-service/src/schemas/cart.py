@@ -10,9 +10,14 @@ from src.models.cart import CartItemType, CartStatus
 
 class CartItemProductCreate(BaseModel):
     product_id: uuid.UUID
-    amount: Decimal
     name: str
+    amount: Decimal
     price: Decimal
+    price_id: Optional[uuid.UUID] = None
+    price_tier_qty: Optional[int] = None
+    priced_at: Optional[datetime] = None
+    price_total: Optional[Decimal] = None
+    short_name: Optional[str] = None
 
 
 class CartItemCreate(BaseModel):
@@ -23,6 +28,8 @@ class CartItemCreate(BaseModel):
     amount: Decimal
     unit_price: Decimal
     design_id: Optional[uuid.UUID] = None
+    total_price: Optional[Decimal] = None
+    priced_at: Optional[datetime] = None
     products: list[CartItemProductCreate] = []
 
 
@@ -42,7 +49,10 @@ class CartItemProductResponse(BaseModel):
     amount: Decimal
     price: Decimal
     price_total: Decimal
+    price_id: Optional[uuid.UUID] = None
+    price_tier_qty: Optional[int] = None
     priced_at: Optional[datetime] = None
+    short_name: Optional[str] = None
 
 
 class CartItemResponse(BaseModel):
