@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -89,6 +89,7 @@ class CartItemProducts(TimestampMixin, Base):
         "pricedAt", DateTime(timezone=True), nullable=True
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
+    short_name: Mapped[Optional[str]] = mapped_column("shortName", Text, nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     price_total: Mapped[Decimal] = mapped_column("priceTotal", Numeric(10, 2), nullable=False)
