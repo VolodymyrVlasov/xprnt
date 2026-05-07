@@ -20,5 +20,13 @@ class UserRepository(BaseRepository[Users]):
         result = await db.execute(select(Users).where(Users.company_id == company_id))
         return list(result.scalars().all())
 
+    async def get_by_phone(self, db: AsyncSession, phone: str) -> Optional[Users]:
+        result = await db.execute(select(Users).where(Users.phone1 == phone))
+        return result.scalar_one_or_none()
+
+    async def get_by_google_id(self, db: AsyncSession, google_id: str) -> Optional[Users]:
+        result = await db.execute(select(Users).where(Users.google_id == google_id))
+        return result.scalar_one_or_none()
+
 
 user_repo = UserRepository()

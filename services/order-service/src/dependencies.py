@@ -1,6 +1,6 @@
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from src.repository.user import user_repo
 from src.services.auth import verify_token
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -31,6 +32,22 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
+    db: AsyncSession = Depends(get_db),
+) -> Optional[Users]:
+    if not credentials:
+        return None
+    try:
+        payload = verify_token(credentials.credentials, token_type="access")
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        return await user_repo.get(db, user_id)
+    except HTTPException:
+        return None
+
+
 def require_role(*roles: str):
     """Dependency factory that enforces role-based access."""
 
@@ -44,3 +61,21 @@ def require_role(*roles: str):
         return current_user
 
     return check
+
+
+# ── App-state service accessors ───────────────────────────────────────────────
+
+def get_redis(request: Request):
+    return request.app.state.redis
+
+
+def get_sms_service(request: Request):
+    return request.app.state.sms_service
+
+
+def get_otp_service(request: Request):
+    return request.app.state.otp_service
+
+
+def get_google_auth_service(request: Request):
+    return request.app.state.google_auth

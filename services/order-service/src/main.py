@@ -2,29 +2,49 @@ import json
 import logging
 from contextlib import asynccontextmanager
 
+import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from src.config import settings
 from src.database import engine
 from src.routes import auth, cart, categories, companies, orders, products, users
 from src.routes import comments, deliveries, payments, references
 from src.routes import price_multipliers, prices
 from src.routes import super_orders, order_paths
 from src.seeds import seed_admin_user, seed_reference_data
+from src.services.google_auth import GoogleAuthService
+from src.services.otp import OTPService
+from src.services.sms import TurboSMSService
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Redis
+    redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    app.state.redis = redis_client
+
+    # Services
+    app.state.sms_service = TurboSMSService(settings.TURBOSMS_API_KEY, settings.TURBOSMS_SENDER)
+    app.state.google_auth = GoogleAuthService(
+        settings.GOOGLE_CLIENT_ID,
+        settings.GOOGLE_CLIENT_SECRET,
+        settings.GOOGLE_REDIRECT_URI,
+    )
+    app.state.otp_service = OTPService(redis_client)
+
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
     await seed_reference_data()
     await seed_admin_user()
     logger.info("✅ xprnt order-service ready")
     yield
+
+    await redis_client.aclose()
 
 
 class UnicodeJSONResponse(JSONResponse):

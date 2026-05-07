@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -53,6 +53,15 @@ class Users(TimestampMixin, Base):
         "contractId", PG_UUID(as_uuid=True), ForeignKey("contracts.id"), nullable=True
     )
     hashed_password: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    phone_verified: Mapped[bool] = mapped_column(
+        "phoneVerified", Boolean, default=False, nullable=False, server_default="false"
+    )
+    google_id: Mapped[Optional[str]] = mapped_column(
+        "googleId", String(128), unique=True, nullable=True
+    )
+    auth_provider: Mapped[str] = mapped_column(
+        "authProvider", String(32), default="email", nullable=False, server_default="email"
+    )
 
     # Relationships
     role: Mapped["Roles"] = relationship("Roles", foreign_keys=[role_id], lazy="selectin")  # type: ignore[name-defined]
