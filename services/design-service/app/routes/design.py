@@ -1,3 +1,4 @@
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
@@ -35,3 +36,13 @@ async def upload_design(
         minio=minio,
         redis=redis,
     )
+
+
+@router.get("/{design_id}", response_model=DesignResponse)
+async def get_design(
+    design_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    minio: MinIOClient = Depends(get_minio),
+    current_user: dict = Depends(get_current_user),
+):
+    return await design_service.get_design(design_id=design_id, db=db, minio=minio)

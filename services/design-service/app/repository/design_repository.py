@@ -46,6 +46,18 @@ class DesignRepository:
         # Re-fetch with joined loads
         return await self.get_design_by_id(db, obj.id)
 
+    async def update_customer_design(
+        self,
+        db: AsyncSession,
+        obj: CustomerDesigns,
+        updates: dict,
+    ) -> CustomerDesigns:
+        for key, value in updates.items():
+            setattr(obj, key, value)
+        await db.commit()
+        await db.refresh(obj)
+        return obj
+
     async def get_design_by_id(
         self,
         db: AsyncSession,
