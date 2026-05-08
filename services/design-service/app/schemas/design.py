@@ -1,7 +1,7 @@
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.models.design import DesignType
 
@@ -39,19 +39,20 @@ class CustomerDesignResponse(BaseModel):
     previewPath: Optional[str] = None
     metadata: Optional[DesignMetadata] = None
 
+    @model_validator(mode="before")
     @classmethod
-    def model_validate(cls, obj, **kwargs):
-        # Map design_metadata ORM attr → metadata schema field
-        if hasattr(obj, "design_metadata"):
-            data = {
-                "id": obj.id,
-                "path": obj.path,
-                "filename": obj.filename,
-                "previewPath": obj.previewPath,
-                "metadata": obj.design_metadata,
+    def _map_design_metadata(cls, data):
+        # ORM column is `design_metadata` (python name); Pydantic reads `metadata`
+        # which resolves to SQLAlchemy's MetaData object — remap it here.
+        if hasattr(data, "design_metadata"):
+            return {
+                "id": data.id,
+                "path": data.path,
+                "filename": data.filename,
+                "previewPath": data.previewPath,
+                "metadata": data.design_metadata,
             }
-            return super().model_validate(data, **kwargs)
-        return super().model_validate(obj, **kwargs)
+        return data
 
 
 class DesignResponse(BaseModel):
