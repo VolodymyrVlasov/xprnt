@@ -81,3 +81,7 @@ class CartResponse(BaseModel):
     customer_id: Optional[uuid.UUID] = None
     currency: str
     items: list[CartItemResponse] = []
+
+
+class ClaimCartBody(BaseModel):
+    guest_session_id: Optional[str] = None

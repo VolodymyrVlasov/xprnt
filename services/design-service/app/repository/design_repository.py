@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -17,12 +17,16 @@ class DesignRepository:
         path: str,
         preview_path: Optional[str],
         metadata: Optional[dict],
+        guest_session_id: Optional[str] = None,
+        user_id: Optional[uuid.UUID] = None,
     ) -> CustomerDesigns:
         obj = CustomerDesigns(
             filename=filename,
             path=path,
             previewPath=preview_path,
             design_metadata=metadata,
+            guest_session_id=guest_session_id,
+            user_id=user_id,
         )
         db.add(obj)
         await db.commit()
@@ -72,6 +76,24 @@ class DesignRepository:
             .where(Designs.id == design_id)
         )
         return result.scalar_one_or_none()
+
+    async def claim_by_session(
+        self,
+        db: AsyncSession,
+        guest_session_id: str,
+        user_id: uuid.UUID,
+    ) -> int:
+        """Set user_id on all unclaimed designs for a guest session. Returns row count."""
+        result = await db.execute(
+            update(CustomerDesigns)
+            .where(
+                CustomerDesigns.guest_session_id == guest_session_id,
+                CustomerDesigns.user_id.is_(None),
+            )
+            .values(user_id=user_id)
+        )
+        await db.commit()
+        return result.rowcount
 
 
 design_repo = DesignRepository()

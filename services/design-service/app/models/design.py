@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -27,6 +27,10 @@ class CustomerDesigns(Base):
     path: Mapped[str] = mapped_column(String, nullable=False)
     previewPath: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     design_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, nullable=True)
+    guest_session_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     createdAt: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

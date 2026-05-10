@@ -27,5 +27,8 @@ class Settings(BaseSettings):
     OTP_MAX_ATTEMPTS: int = 3
     OTP_RESEND_COOLDOWN_SECONDS: int = 60
 
+    # Internal service URLs
+    DESIGN_SERVICE_URL: str = "http://design-service:8001"
+
 
 settings = Settings()

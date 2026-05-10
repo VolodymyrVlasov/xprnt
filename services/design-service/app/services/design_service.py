@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.design import DesignType
 from app.repository.design_repository import design_repo
-from app.schemas.design import DesignResponse
+from app.schemas.design import ClaimDesignsResponse, DesignResponse
 from app.utils.file_storage import BUCKET_PREVIEWS, BUCKET_UPLOADS, MinIOClient
 from app.utils.preview_generator import generate_preview
 from app.utils.technical_validation import validate_design_metadata
@@ -37,6 +37,8 @@ async def upload_customer_design(
     db: AsyncSession,
     minio: MinIOClient,
     redis: Redis,
+    guest_session_id: Optional[str] = None,
+    user_id: Optional[uuid.UUID] = None,
 ) -> DesignResponse:
     # 1. Validate format
     filename = file.filename or "upload"
@@ -91,6 +93,8 @@ async def upload_customer_design(
         path=tmp_object_name,
         preview_path=preview_path,
         metadata=metadata.model_dump(),
+        guest_session_id=guest_session_id,
+        user_id=user_id,
     )
     design = await design_repo.create_design(
         db,
@@ -175,3 +179,13 @@ async def get_design(
         previewURL=preview_url,
         customerDesign=design.customerDesign,
     )
+
+
+async def claim_designs(
+    guest_session_id: str,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+) -> ClaimDesignsResponse:
+    claimed = await design_repo.claim_by_session(db, guest_session_id, user_id)
+    logger.info("Claimed %d design(s) for session %s → user %s", claimed, guest_session_id, user_id)
+    return ClaimDesignsResponse(claimed=claimed)

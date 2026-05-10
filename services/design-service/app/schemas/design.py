@@ -70,3 +70,11 @@ class UploadDesignRequest(BaseModel):
     targetHeight: Optional[float] = None
     targetColor: str = "cmyk"
     targetDpi: int = 300
+
+
+class ClaimDesignsRequest(BaseModel):
+    guest_session_id: str
+
+
+class ClaimDesignsResponse(BaseModel):
+    claimed: int

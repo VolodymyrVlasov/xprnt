@@ -1,14 +1,17 @@
+import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.dependencies import get_current_user, get_current_user_optional, get_db
 from src.models.cart import CartStatus
 from src.models.user import Users
 from src.repository.cart import cart_repo
-from src.schemas.cart import CartItemCreate, CartItemUpdate, CartResponse
+from src.schemas.cart import CartItemCreate, CartItemUpdate, CartResponse, ClaimCartBody
 from src.services.cart import (
     add_item,
     create_cart,
@@ -17,6 +20,8 @@ from src.services.cart import (
     remove_item,
     update_item,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
@@ -110,10 +115,16 @@ async def lock_cart_route(
 @router.post("/{cart_id}/claim", response_model=CartResponse)
 async def claim_cart_route(
     cart_id: uuid.UUID,
+    request: Request,
+    body: ClaimCartBody = ClaimCartBody(),
     db: AsyncSession = Depends(get_db),
     current_user: Users = Depends(get_current_user),
 ):
-    """Assign an anonymous cart to the authenticated user."""
+    """Assign an anonymous cart to the authenticated user.
+
+    If `guest_session_id` is provided in the body, also claims any guest
+    designs in design-service. Design-service failure does not abort the cart claim.
+    """
     cart = await cart_repo.get(db, cart_id)
     if not cart:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart not found")
@@ -121,5 +132,32 @@ async def claim_cart_route(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cart already claimed")
     if cart.status != CartStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cart is not active")
+
     await cart_repo.update(db, cart, {"customer_id": current_user.id})
+
+    if body.guest_session_id:
+        auth_header = request.headers.get("Authorization", "")
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(
+                    f"{settings.DESIGN_SERVICE_URL}/designs/claim",
+                    json={"guest_session_id": body.guest_session_id},
+                    headers={"Authorization": auth_header},
+                )
+                resp.raise_for_status()
+                claimed = resp.json().get("claimed", 0)
+                logger.info(
+                    "Claimed %d design(s) from design-service for session %s (cart %s)",
+                    claimed,
+                    body.guest_session_id,
+                    cart_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Design-service claim failed for cart %s / session %s — designs not linked: %s",
+                cart_id,
+                body.guest_session_id,
+                exc,
+            )
+
     return await get_cart(db, cart_id)
