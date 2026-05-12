@@ -154,3 +154,23 @@ services:
       - postgres-order
       - postgres-design
     restart: unless-stopped
+
+  admin:
+    build:
+      context: ./services/admin
+      dockerfile: Dockerfile.dev
+    container_name: xprnt-admin
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./services/admin/src:/app/src
+      - ./services/admin/public:/app/public
+      - ./services/admin/index.html:/app/index.html
+      - ./services/admin/vite.config.js:/app/vite.config.js
+    environment:
+      - VITE_API_TARGET=http://order-service:8000
+    depends_on:
+      - order-service
+    networks:
+      - xprnt-network
+    restart: unless-stopped
