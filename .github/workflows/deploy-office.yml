@@ -1,0 +1,53 @@
+name: Deploy → Office Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, office]
+    timeout-minutes: 15
+
+    steps:
+      - name: Pull latest code
+        run: |
+          cd /opt/xprnt/repo
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Copy .env.prod
+        run: |
+          cp /opt/xprnt/.env.prod /opt/xprnt/repo/.env.prod
+
+      - name: Stop containers
+        run: |
+          cd /opt/xprnt/repo
+          docker compose -f docker-compose.prod.yml down
+
+      - name: Build and start containers
+        run: |
+          cd /opt/xprnt/repo
+          docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+      - name: Wait for DBs to be ready
+        run: |
+          sleep 10
+          docker exec postgres-order pg_isready -U postgres -d order_db
+          docker exec postgres-design pg_isready -U postgres -d design_db
+
+      - name: Run migrations — order-service
+        run: |
+          docker exec order-service alembic upgrade head
+
+      - name: Run migrations — design-service
+        run: |
+          docker exec design-service alembic upgrade head
+
+      - name: Smoke test
+        run: |
+          sleep 5
+          curl -f http://localhost:8000/health
+          curl -f http://localhost:8001/health
+          curl -f http://localhost:8002/health

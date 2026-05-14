@@ -1,5 +1,62 @@
+import json
+import logging
+from contextlib import asynccontextmanager
+
+import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+
+from src.config import settings
+from src.database import engine
+from src.routes import auth, cart, categories, companies, orders, products, users
+from src.routes import comments, deliveries, payments, references
+from src.routes import price_multipliers, prices
+from src.routes import super_orders, order_paths
+from src.seeds import seed_admin_user, seed_reference_data
+from src.services.google_auth import GoogleAuthService
+from src.services.otp import OTPService
+from src.services.sms import TurboSMSService
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Redis
+    redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    app.state.redis = redis_client
+
+    # Services
+    app.state.sms_service = TurboSMSService(settings.TURBOSMS_API_KEY, settings.TURBOSMS_SENDER)
+    app.state.google_auth = GoogleAuthService(
+        settings.GOOGLE_CLIENT_ID,
+        settings.GOOGLE_CLIENT_SECRET,
+        settings.GOOGLE_REDIRECT_URI,
+    )
+    app.state.otp_service = OTPService(redis_client)
+
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+    await seed_reference_data()
+    await seed_admin_user()
+    logger.info("✅ xprnt order-service ready")
+    yield
+
+    await redis_client.aclose()
+
+
+class UnicodeJSONResponse(JSONResponse):
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
 
 app = FastAPI(
     title="order-service",
@@ -7,19 +64,40 @@ app = FastAPI(
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
+    json_encoders={},
 )
+
+app.router.default_response_class = UnicodeJSONResponse
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# from src.routes import orders, auth
-# app.include_router(orders.router, prefix="/orders", tags=["orders"])
-# app.include_router(auth.router, prefix="/auth", tags=["auth"])
+PREFIX = "/api/v1"
+
+app.include_router(auth.router, prefix=PREFIX)
+app.include_router(users.router, prefix=PREFIX)
+app.include_router(companies.router, prefix=PREFIX)
+app.include_router(products.router, prefix=PREFIX)
+app.include_router(categories.router, prefix=PREFIX)
+app.include_router(cart.router, prefix=PREFIX)
+app.include_router(orders.router, prefix=PREFIX)
+app.include_router(references.router, prefix=PREFIX)
+app.include_router(prices.router, prefix=PREFIX)
+app.include_router(price_multipliers.router, prefix=PREFIX)
+app.include_router(deliveries.router, prefix=PREFIX)
+app.include_router(payments.router, prefix=PREFIX)
+app.include_router(comments.router, prefix=PREFIX)
+app.include_router(super_orders.router, prefix=PREFIX)
+app.include_router(order_paths.router, prefix=PREFIX)
 
 
 @app.get("/health", tags=["health"])
