@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     port: 3001,
     host: true,
+    allowedHosts: ['admin.xprnt.top'],
     proxy: {
       '/api': {
         target: process.env.VITE_API_TARGET || 'http://localhost:8000',
