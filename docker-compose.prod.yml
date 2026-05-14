@@ -136,6 +136,11 @@ services:
     container_name: xprnt-admin
     ports:
       - "127.0.0.1:3001:3001"
+    volumes:
+      - /opt/xprnt/repo/services/admin/src:/app/src:ro
+      - /opt/xprnt/repo/services/admin/public:/app/public:ro
+      - /opt/xprnt/repo/services/admin/index.html:/app/index.html:ro
+      - /opt/xprnt/repo/services/admin/vite.config.js:/app/vite.config.js:ro
     environment:
       - VITE_API_TARGET=http://order-service:8000
     depends_on:

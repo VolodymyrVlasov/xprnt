@@ -40,6 +40,7 @@ designs, and syncs jobs to physical print stations at the office.
 | minio | 9000/9001 | Object storage for design files |
 | redis | 6379 | Cache and message queue |
 | pgadmin | 5050 | Database admin UI |
+| admin | 3001 | React admin panel for managers (react-admin) |
 
 ## Quick Start (Dev)
 
@@ -98,24 +99,22 @@ main          ← production-ready, triggers deploy
 - Branch from `develop` for all new work
 - PR into `develop` first; merge to `main` only for releases
 - CI runs on every push and PR to `develop` and `main`
-- Deploy runs automatically on push to `main`
+- Deploy to SVR (office server) runs automatically on push to `main`
+  via GitHub Actions self-hosted runner (no SSH secrets needed)
 
 ## Deployment
 
-Deployment is handled via GitHub Actions (see [.github/workflows/deploy.yml](.github/workflows/deploy.yml)).
+Deployment to the office server (SVR, 192.168.55.2) is handled via
+GitHub Actions self-hosted runner (see `.github/workflows/deploy-office.yml`).
 
 On push to `main`:
-1. GitHub Actions SSHes into the VPS
+1. Self-hosted runner on SVR receives the job (outbound HTTPS — no open ports needed)
 2. Pulls latest code
-3. Rebuilds and restarts all containers via `docker-compose.prod.yml`
-4. Sends a Telegram notification with the result
+3. Starts infrastructure (postgres, redis, minio)
+4. Runs Alembic migrations (order-service, design-service)
+5. Rebuilds and restarts all containers via `docker-compose.prod.yml`
+6. Smoke test: curl /health on all services
 
-Required GitHub Secrets:
+No GitHub Secrets required for office deploy — runner runs directly on the server.
 
-| Secret | Description |
-|---|---|
-| `VPS_HOST` | VPS IP address or hostname |
-| `VPS_USER` | SSH username |
-| `VPS_SSH_KEY` | Private SSH key |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token for notifications |
-| `TELEGRAM_CHAT_ID` | Telegram chat/channel ID |
+See `DEPLOY.md` for full deployment guide and rollback instructions.
