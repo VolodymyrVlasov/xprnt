@@ -36,6 +36,11 @@ class OrderStatus(str, enum.Enum):
     returned = "returned"
 
 
+class OrderSource(str, enum.Enum):
+    web = "web"
+    office = "office"
+
+
 class CommentEntityType(str, enum.Enum):
     order = "order"
 
@@ -49,6 +54,11 @@ class OrderNumbers(Base):
     )
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
         "createdBy", PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    source: Mapped[OrderSource] = mapped_column(
+        Enum(OrderSource, name="order_source"),
+        nullable=False,
+        server_default=OrderSource.office.value,
     )
 
 

@@ -3,13 +3,15 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, Sequence, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from src.database import Base
 from src.models.base import TimestampMixin
+
+product_article_seq = Sequence("product_article_seq", start=1000)
 
 
 class Categories(TimestampMixin, Base):
@@ -77,6 +79,14 @@ class Products(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False)
     short_name: Mapped[Optional[str]] = mapped_column("shortName", String, nullable=True)
+    article: Mapped[int] = mapped_column(
+        Integer,
+        product_article_seq,
+        server_default=product_article_seq.next_value(),
+        unique=True,
+        nullable=False,
+    )
+    sku: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     category_id: Mapped[uuid.UUID] = mapped_column(
         "categoryId", PG_UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False
