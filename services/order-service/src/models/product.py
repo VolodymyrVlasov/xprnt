@@ -82,7 +82,7 @@ class Products(TimestampMixin, Base):
     article: Mapped[int] = mapped_column(
         Integer,
         product_article_seq,
-        server_default=product_article_seq.next_val(),
+        server_default=product_article_seq.next_value(),
         unique=True,
         nullable=False,
     )
