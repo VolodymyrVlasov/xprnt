@@ -1,14 +1,17 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import get_current_user, get_db, require_role
 from src.models.user import Users
 from src.repository.product import product_repo
+from src.schemas.import_products import ImportReport
 from src.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from src.services.import_service import ImportService
 from src.services.product import create_product, deactivate_product, update_product
+from src.utils.import_parser import parse_csv, parse_xlsx
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -58,3 +61,41 @@ async def delete_product(
     _: Users = Depends(require_role("manager", "admin")),
 ):
     return await deactivate_product(db, product_id)
+
+
+MAX_IMPORT_SIZE = 5 * 1024 * 1024  # 5 MB
+
+SUPPORTED_CONTENT_TYPES = {
+    "text/csv",
+    "application/csv",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+@router.post("/import", response_model=ImportReport)
+async def import_products(
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    _: Users = Depends(require_role("manager", "admin")),
+):
+    content = await file.read()
+    if len(content) > MAX_IMPORT_SIZE:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large (max 5 MB)")
+
+    content_type = (file.content_type or "").split(";")[0].strip()
+    if content_type not in SUPPORTED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type: {content_type}. Use text/csv or .xlsx",
+        )
+
+    try:
+        if content_type in ("text/csv", "application/csv"):
+            rows = parse_csv(content)
+        else:
+            rows = parse_xlsx(content)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    service = ImportService(db)
+    return await service.import_products(rows)
