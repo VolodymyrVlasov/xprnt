@@ -26,28 +26,38 @@ jobs:
           cd /opt/xprnt/repo
           docker compose -f docker-compose.prod.yml down
 
-      - name: Build and start containers
+      - name: Start infrastructure only
         run: |
           cd /opt/xprnt/repo
-          docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+          docker compose -f docker-compose.prod.yml up -d \
+            postgres-order postgres-design redis minio
 
       - name: Wait for DBs to be ready
         run: |
-          sleep 10
+          sleep 15
           docker exec postgres-order pg_isready -U postgres -d order_db
           docker exec postgres-design pg_isready -U postgres -d design_db
 
       - name: Run migrations — order-service
         run: |
-          docker exec order-service alembic upgrade head
+          cd /opt/xprnt/repo
+          docker compose -f docker-compose.prod.yml run --rm \
+            --no-deps order-service alembic upgrade head
 
       - name: Run migrations — design-service
         run: |
-          docker exec design-service alembic upgrade head
+          cd /opt/xprnt/repo
+          docker compose -f docker-compose.prod.yml run --rm \
+            --no-deps design-service alembic upgrade head
+
+      - name: Start all services
+        run: |
+          cd /opt/xprnt/repo
+          docker compose -f docker-compose.prod.yml up -d --build
 
       - name: Smoke test
         run: |
-          sleep 5
+          sleep 10
           curl -f http://localhost:8000/health
           curl -f http://localhost:8001/health
           curl -f http://localhost:8002/health
