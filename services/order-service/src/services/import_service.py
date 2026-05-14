@@ -3,9 +3,12 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models.product import Categories, Prices, Products
 from src.models.reference import MeasurementUnits
 from src.schemas.import_products import ImportProductRow, ImportReport, ImportRowResult
+
+DEFAULT_MEASUREMENT_UNIT = "шт"
 
 
 class ImportService:
@@ -46,12 +49,13 @@ class ImportService:
                     errors += 1
                     continue
 
-                # 2. Resolve measurement unit
-                unit = await self._resolve_measurement_unit(row.measurementUnit)
+                # 2. Resolve measurement unit — default to "шт" if not provided
+                unit_name = row.measurementUnit or DEFAULT_MEASUREMENT_UNIT
+                unit = await self._resolve_measurement_unit(unit_name)
                 if not unit:
                     results.append(ImportRowResult(
                         row=i, status="error", name=row.name, sku=row.sku,
-                        reason=f"MeasurementUnit not found: {row.measurementUnit}",
+                        reason=f"MeasurementUnit not found: {unit_name}",
                     ))
                     errors += 1
                     continue
@@ -79,14 +83,26 @@ class ImportService:
                 self.db.add(product)
                 await self.db.flush()  # get product.id without committing
 
-                # 5. Create price if any tier is set
-                price_tiers = [row.price_1, row.price_10, row.price_20, row.price_50, row.price_100]
-                if any(t is not None for t in price_tiers):
-                    values = [float(t) if t is not None else None for t in price_tiers]
+                # 5. Build structured price tiers — [{from, price}] sorted by qty
+                tier_map = [
+                    (1,   row.price_1),
+                    (5,   row.price_5),
+                    (10,  row.price_10),
+                    (20,  row.price_20),
+                    (50,  row.price_50),
+                    (100, row.price_100),
+                ]
+                values = [
+                    {"from": qty, "price": str(p)}
+                    for qty, p in tier_map
+                    if p is not None
+                ]
+
+                if values:
                     price = Prices(
                         product_id=product.id,
                         prime_cost_eur=row.primeCostEUR,
-                        fx_rate_used=row.fxRateUsed,
+                        fx_rate_used=settings.eur_uah_rate,
                         values=values,
                         start_at=datetime.now(timezone.utc),
                     )
