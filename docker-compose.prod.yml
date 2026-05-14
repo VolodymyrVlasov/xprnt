@@ -13,8 +13,9 @@ volumes:
 services:
   order-service:
     build: ./services/order-service
+    container_name: order-service
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file: .env.prod
     depends_on:
       postgres-order:
@@ -27,8 +28,9 @@ services:
 
   design-service:
     build: ./services/design-service
+    container_name: design-service
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8000"
     env_file: .env.prod
     depends_on:
       postgres-design:
@@ -41,21 +43,11 @@ services:
       - xprnt-network
     restart: always
 
-  sync-service-vps:
-    build: ./services/sync-service
-    ports:
-      - "8002:8002"
-    env_file: .env.prod
-    environment:
-      - ROLE=vps
-    networks:
-      - xprnt-network
-    restart: always
-
   sync-service-office:
     build: ./services/sync-service
+    container_name: sync-service-office
     ports:
-      - "8003:8002"
+      - "127.0.0.1:8002:8000"
     env_file: .env.prod
     environment:
       - ROLE=office
@@ -65,13 +57,15 @@ services:
 
   postgres-order:
     image: postgres:16
+    container_name: postgres-order
     env_file: .env.prod
     environment:
       - POSTGRES_DB=order_db
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${ORDER_DB_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres_order_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - xprnt-network
     healthcheck:
@@ -83,11 +77,12 @@ services:
 
   postgres-design:
     image: postgres:16
+    container_name: postgres-design
     env_file: .env.prod
     environment:
       - POSTGRES_DB=design_db
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${DESIGN_DB_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres_design_data:/var/lib/postgresql/data
     networks:
@@ -101,6 +96,9 @@ services:
 
   minio:
     image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "127.0.0.1:9000:9000"
     env_file: .env.prod
     environment:
       - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
@@ -119,6 +117,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: redis
     volumes:
       - redis_data:/data
     networks:
@@ -128,4 +127,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: always
+
+  admin:
+    build:
+      context: ./services/admin
+      dockerfile: Dockerfile.dev
+    container_name: xprnt-admin
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      - VITE_API_TARGET=http://order-service:8000
+    depends_on:
+      - order-service
+    networks:
+      - xprnt-network
     restart: always
