@@ -55,9 +55,6 @@ class Prices(TimestampMixin, Base):
     )
     prime_cost_eur: Mapped[Optional[Decimal]] = mapped_column("primeCostEUR", Numeric(10, 4), nullable=True)
     fx_rate_used: Mapped[Optional[Decimal]] = mapped_column("fxRateUsed", Numeric(10, 6), nullable=True)
-    price_multiplier_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        "priceMultiplierId", PG_UUID(as_uuid=True), ForeignKey("price_multipliers.id"), nullable=True
-    )
     values: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     previous_price_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         "previousPriceId", PG_UUID(as_uuid=True), ForeignKey("prices.id"), nullable=True
