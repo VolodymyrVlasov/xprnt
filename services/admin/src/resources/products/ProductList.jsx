@@ -89,7 +89,7 @@ const ProductListActions = () => {
 };
 
 export const ProductList = () => (
-  <List filters={productFilters} actions={<ProductListActions />}>
+  <List filters={productFilters} actions={<ProductListActions />} empty={false}>
     <Datagrid rowClick="edit">
       <TextField source="name" />
       <TextField source="shortName" />

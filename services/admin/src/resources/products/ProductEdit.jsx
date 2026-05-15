@@ -7,8 +7,18 @@ import {
   TextInput,
 } from 'react-admin';
 
+const transformProduct = (data) => ({
+  name: data.name,
+  shortName: data.shortName || null,
+  description: data.description || null,
+  category_id: data.categoryId || data.category_id,
+  measurement_unit_id: data.measurementUnitId || data.measurement_unit_id,
+  isDeliverable: data.isDeliverable ?? true,
+  inStock: data.inStock ?? true,
+});
+
 export const ProductEdit = () => (
-  <Edit>
+  <Edit transform={transformProduct}>
     <SimpleForm>
       <TextInput source="name" fullWidth />
       <TextInput source="shortName" />
