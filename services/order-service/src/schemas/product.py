@@ -37,9 +37,9 @@ class PriceResponse(BaseModel):
     id: uuid.UUID
     product_id: uuid.UUID
     prime_cost_eur: Optional[Decimal] = None
-    values: Optional[list] = None
-    start_at: Optional[datetime] = None
-    finish_at: Optional[datetime] = None
+    values: list | None = None
+    start_at: datetime | None = None
+    finish_at: datetime | None = None
 
 
 class ProductCreate(BaseModel):
