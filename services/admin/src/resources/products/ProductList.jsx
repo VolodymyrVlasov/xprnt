@@ -2,13 +2,18 @@ import { useRef } from 'react';
 import {
   BooleanField,
   BooleanInput,
+  CreateButton,
   Datagrid,
   List,
   ReferenceInput,
   SelectInput,
   TextField,
+  TopToolbar,
+  useNotify,
   useRefresh,
 } from 'react-admin';
+import { Button } from '@mui/material';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 const productFilters = [
   <ReferenceInput source="category_id" reference="categories" label="Category" alwaysOn>
@@ -17,18 +22,15 @@ const productFilters = [
   <BooleanInput source="in_stock" label="In Stock" alwaysOn />,
 ];
 
-const ImportButton = () => {
+const ProductListActions = () => {
   const refresh = useRefresh();
-  const inputRef = useRef(null);
+  const notify = useNotify();
+  const fileInputRef = useRef(null);
 
-  const handleClick = () => {
-    inputRef.current.value = '';
-    inputRef.current.click();
-  };
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
+  const handleImport = async (event) => {
+    const file = event.target.files[0];
     if (!file) return;
+    event.target.value = '';
 
     const token = localStorage.getItem('token');
     const formData = new FormData();
@@ -40,60 +42,54 @@ const ImportButton = () => {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
+      const data = await res.json();
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        alert(`Import failed: ${err.detail || res.statusText}`);
+        notify(`Import failed: ${data.detail || res.statusText}`, { type: 'error' });
         return;
       }
 
-      const report = await res.json();
-      let msg = `Import complete: ${report.created} created, ${report.skipped} skipped, ${report.errors} errors`;
-      if (report.errors > 0) {
-        const errorLines = report.rows
-          .filter((r) => r.status === 'error')
-          .map((r) => `  Row ${r.row}: ${r.reason}`)
+      const { created, updated, skipped, errors, rows } = data;
+      let msg = `Import complete: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`;
+
+      if (errors > 0) {
+        const errLines = rows
+          .filter(r => r.action === 'error')
+          .map(r => `Row ${r.row}: ${r.reason}`)
           .join('\n');
-        msg += `\n\nErrors:\n${errorLines}`;
+        msg += `\n\nErrors:\n${errLines}`;
       }
+
       alert(msg);
       refresh();
     } catch (err) {
-      alert(`Import failed: ${err.message}`);
+      notify(`Import error: ${err.message}`, { type: 'error' });
     }
   };
 
   return (
-    <>
+    <TopToolbar>
+      <CreateButton />
+      <Button
+        size="small"
+        startIcon={<UploadFileIcon />}
+        onClick={() => fileInputRef.current.click()}
+      >
+        Import CSV
+      </Button>
       <input
-        ref={inputRef}
+        ref={fileInputRef}
         type="file"
         accept=".csv,.xlsx"
         style={{ display: 'none' }}
-        onChange={handleFileChange}
+        onChange={handleImport}
       />
-      <button
-        onClick={handleClick}
-        style={{
-          marginLeft: '8px',
-          padding: '6px 16px',
-          background: '#1976d2',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          fontSize: '0.875rem',
-          fontWeight: 500,
-        }}
-      >
-        Import CSV / XLSX
-      </button>
-    </>
+    </TopToolbar>
   );
 };
 
 export const ProductList = () => (
-  <List filters={productFilters} actions={<ListActions />}>
+  <List filters={productFilters} actions={<ProductListActions />}>
     <Datagrid rowClick="edit">
       <TextField source="name" />
       <TextField source="shortName" />
@@ -102,14 +98,4 @@ export const ProductList = () => (
       <BooleanField source="isDeliverable" />
     </Datagrid>
   </List>
-);
-
-import { TopToolbar, CreateButton, ExportButton } from 'react-admin';
-
-const ListActions = () => (
-  <TopToolbar>
-    <CreateButton />
-    <ExportButton />
-    <ImportButton />
-  </TopToolbar>
 );
