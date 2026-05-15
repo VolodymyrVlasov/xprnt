@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     DESIGN_SERVICE_URL: str = "http://design-service:8001"
 
     # Exchange rate fallback (EUR → UAH)
-    eur_uah_rate: Decimal = Decimal("43.50")
+    EUR_UAH_RATE: Decimal = Decimal("43.50")
 
 
 settings = Settings()

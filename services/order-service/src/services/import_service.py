@@ -140,7 +140,7 @@ class ImportService:
                         new_price = Prices(
                             product_id=existing_product.id,
                             prime_cost_eur=row.primeCostEUR,
-                            fx_rate_used=settings.eur_uah_rate,
+                            fx_rate_used=settings.EUR_UAH_RATE,
                             values=price_values,
                         )
                         self.db.add(new_price)
@@ -178,7 +178,7 @@ class ImportService:
                         new_price = Prices(
                             product_id=new_product.id,
                             prime_cost_eur=row.primeCostEUR,
-                            fx_rate_used=settings.eur_uah_rate,
+                            fx_rate_used=settings.EUR_UAH_RATE,
                             values=price_values,
                         )
                         self.db.add(new_price)
