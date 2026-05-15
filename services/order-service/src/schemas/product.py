@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -36,9 +37,9 @@ class PriceResponse(BaseModel):
     id: uuid.UUID
     product_id: uuid.UUID
     prime_cost_eur: Optional[Decimal] = None
-    values: Optional[dict] = None
-    start_at: Optional[str] = None
-    finish_at: Optional[str] = None
+    values: list | None = None
+    start_at: datetime | None = None
+    finish_at: datetime | None = None
 
 
 class ProductCreate(BaseModel):

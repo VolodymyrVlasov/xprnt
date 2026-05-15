@@ -1,118 +1,220 @@
+import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models.product import Categories, Prices, Products
-from src.models.reference import MeasurementUnits
+from src.models.reference import MeasurementUnits, Sizes
 from src.schemas.import_products import ImportProductRow, ImportReport, ImportRowResult
+
+DEFAULT_MEASUREMENT_UNIT = "шт"
 
 
 class ImportService:
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._mm_unit_id: uuid.UUID | None = None
 
-    async def _resolve_category(self, name: str) -> Categories | None:
+    async def _resolve_mm_unit(self) -> uuid.UUID:
+        if self._mm_unit_id is not None:
+            return self._mm_unit_id
         result = await self.db.execute(
-            select(Categories).where(Categories.name == name)
+            select(MeasurementUnits).where(MeasurementUnits.measurement_unit == "мм")
         )
-        return result.scalar_one_or_none()
+        unit = result.scalar_one_or_none()
+        if not unit:
+            raise RuntimeError("MeasurementUnit 'мм' not found — run seeds first")
+        self._mm_unit_id = unit.id
+        return self._mm_unit_id
 
-    async def _resolve_measurement_unit(self, name: str) -> MeasurementUnits | None:
-        result = await self.db.execute(
-            select(MeasurementUnits).where(MeasurementUnits.measurement_unit == name)
-        )
-        return result.scalar_one_or_none()
+    async def _get_or_create_size(
+        self,
+        width: Decimal | None,
+        height: Decimal | None,
+        roll_width: Decimal | None,
+        mm_unit_id: uuid.UUID,
+    ) -> uuid.UUID | None:
+        if width is None and height is None and roll_width is None:
+            return None
 
-    async def _sku_exists(self, sku: str) -> bool:
-        result = await self.db.execute(
-            select(Products.id).where(Products.sku == sku)
+        stmt = select(Sizes).where(
+            Sizes.unit_id == mm_unit_id,
+            Sizes.width == width,
+            Sizes.height == height,
+            Sizes.roll_width == roll_width,
         )
-        return result.scalar_one_or_none() is not None
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
+        if existing:
+            return existing.id
+
+        new_size = Sizes(
+            unit_id=mm_unit_id,
+            width=width,
+            height=height,
+            roll_width=roll_width,
+        )
+        self.db.add(new_size)
+        await self.db.flush()
+        return new_size.id
 
     async def import_products(self, rows: list[ImportProductRow]) -> ImportReport:
+        mm_unit_id = await self._resolve_mm_unit()
         results: list[ImportRowResult] = []
-        created = skipped = errors = 0
+        created = updated = skipped = errors = 0
 
-        for i, row in enumerate(rows, start=1):
+        for i, row in enumerate(rows, start=2):  # row 1 = header
+            await self.db.execute(text("SAVEPOINT sp_row"))
             try:
-                # 1. Resolve category
-                category = await self._resolve_category(row.category)
-                if not category:
-                    results.append(ImportRowResult(
-                        row=i, status="error", name=row.name, sku=row.sku,
-                        reason=f"Category not found: {row.category}",
-                    ))
-                    errors += 1
-                    continue
-
-                # 2. Resolve measurement unit
-                unit = await self._resolve_measurement_unit(row.measurementUnit)
-                if not unit:
-                    results.append(ImportRowResult(
-                        row=i, status="error", name=row.name, sku=row.sku,
-                        reason=f"MeasurementUnit not found: {row.measurementUnit}",
-                    ))
-                    errors += 1
-                    continue
-
-                # 3. Check duplicate SKU
-                if row.sku and await self._sku_exists(row.sku):
-                    results.append(ImportRowResult(
-                        row=i, status="skipped", name=row.name, sku=row.sku,
-                        reason="SKU already exists",
-                    ))
-                    skipped += 1
-                    continue
-
-                # 4. Create product
-                product = Products(
-                    name=row.name,
-                    short_name=row.shortName,
-                    description=row.description,
-                    category_id=category.id,
-                    measurement_unit_id=unit.id,
-                    is_deliverable=row.isDeliverable,
-                    in_stock=row.inStock,
-                    sku=row.sku,
+                # --- Resolve category ---
+                cat_result = await self.db.execute(
+                    select(Categories).where(Categories.name == row.category.strip())
                 )
-                self.db.add(product)
-                await self.db.flush()  # get product.id without committing
+                category = cat_result.scalar_one_or_none()
+                if not category:
+                    raise ValueError(f"Category not found: {row.category}")
 
-                # 5. Create price if any tier is set
-                price_tiers = [row.price_1, row.price_10, row.price_20, row.price_50, row.price_100]
-                if any(t is not None for t in price_tiers):
-                    values = [float(t) if t is not None else None for t in price_tiers]
-                    price = Prices(
-                        product_id=product.id,
-                        prime_cost_eur=row.primeCostEUR,
-                        fx_rate_used=row.fxRateUsed,
-                        values=values,
-                        start_at=datetime.now(timezone.utc),
+                # --- Resolve measurementUnit ---
+                unit_name = row.measurementUnit.strip() if row.measurementUnit else DEFAULT_MEASUREMENT_UNIT
+                unit_result = await self.db.execute(
+                    select(MeasurementUnits).where(
+                        MeasurementUnits.measurement_unit == unit_name
                     )
-                    self.db.add(price)
+                )
+                unit = unit_result.scalar_one_or_none()
+                if not unit:
+                    raise ValueError(f"MeasurementUnit not found: {unit_name}")
+
+                # --- Resolve or create Size ---
+                size_id = await self._get_or_create_size(
+                    row.width, row.height, row.rollWidth, mm_unit_id
+                )
+
+                # --- Build price values list ---
+                tiers = [
+                    (1,   row.price_1),
+                    (5,   row.price_5),
+                    (10,  row.price_10),
+                    (20,  row.price_20),
+                    (50,  row.price_50),
+                    (100, row.price_100),
+                ]
+                price_values = [
+                    {"from": qty, "price": str(price)}
+                    for qty, price in tiers
+                    if price is not None
+                ]
+
+                # --- UPSERT LOGIC ---
+                existing_product = None
+                if row.article is not None:
+                    res = await self.db.execute(
+                        select(Products).where(Products.article == row.article)
+                    )
+                    existing_product = res.scalar_one_or_none()
+
+                if existing_product:
+                    # UPDATE MODE
+                    existing_product.name = row.name
+                    existing_product.short_name = row.shortName
+                    existing_product.description = row.description
+                    existing_product.is_deliverable = row.isDeliverable
+                    existing_product.in_stock = row.inStock
+                    existing_product.category_id = category.id
+                    existing_product.measurement_unit_id = unit.id
+                    if size_id:
+                        existing_product.size_id = size_id
+
+                    if price_values:
+                        # Close existing active price
+                        if existing_product.active_price_id:
+                            await self.db.execute(
+                                update(Prices)
+                                .where(Prices.id == existing_product.active_price_id)
+                                .values(finish_at=datetime.now(timezone.utc))
+                            )
+                        # Create new price
+                        new_price = Prices(
+                            product_id=existing_product.id,
+                            prime_cost_eur=row.primeCostEUR,
+                            fx_rate_used=settings.EUR_UAH_RATE,
+                            values=price_values,
+                        )
+                        self.db.add(new_price)
+                        await self.db.flush()
+                        existing_product.active_price_id = new_price.id
+
                     await self.db.flush()
-                    product.active_price_id = price.id
+                    await self.db.execute(text("RELEASE SAVEPOINT sp_row"))
+                    results.append(ImportRowResult(
+                        row=i, action="updated", name=row.name, sku=None
+                    ))
+                    updated += 1
 
-                await self.db.commit()
-                await self.db.refresh(product)
+                else:
+                    # CREATE MODE
+                    product_kwargs: dict = dict(
+                        name=row.name,
+                        short_name=row.shortName,
+                        description=row.description,
+                        category_id=category.id,
+                        is_deliverable=row.isDeliverable,
+                        in_stock=row.inStock,
+                        measurement_unit_id=unit.id,
+                    )
+                    if size_id:
+                        product_kwargs["size_id"] = size_id
+                    if row.article is not None:
+                        product_kwargs["article"] = row.article
 
+                    new_product = Products(**product_kwargs)
+                    self.db.add(new_product)
+                    await self.db.flush()
+
+                    if price_values:
+                        new_price = Prices(
+                            product_id=new_product.id,
+                            prime_cost_eur=row.primeCostEUR,
+                            fx_rate_used=settings.EUR_UAH_RATE,
+                            values=price_values,
+                        )
+                        self.db.add(new_price)
+                        await self.db.flush()
+                        new_product.active_price_id = new_price.id
+                        await self.db.flush()
+
+                    await self.db.execute(text("RELEASE SAVEPOINT sp_row"))
+                    results.append(ImportRowResult(
+                        row=i, action="created", name=row.name, sku=None
+                    ))
+                    created += 1
+
+            except Exception as e:
+                await self.db.execute(text("ROLLBACK TO SAVEPOINT sp_row"))
                 results.append(ImportRowResult(
-                    row=i, status="created", name=row.name, sku=row.sku,
-                ))
-                created += 1
-
-            except Exception as exc:
-                await self.db.rollback()
-                results.append(ImportRowResult(
-                    row=i, status="error", name=row.name, sku=row.sku,
-                    reason=str(exc),
+                    row=i, action="error", name=getattr(row, "name", None),
+                    sku=None, reason=str(e)
                 ))
                 errors += 1
+
+        # Reset sequence to avoid collisions with manually set article values
+        await self.db.execute(
+            text("""
+                SELECT setval(
+                    'product_article_seq',
+                    GREATEST((SELECT COALESCE(MAX(article), 1000) FROM products), 1000)
+                )
+            """)
+        )
+        await self.db.commit()
 
         return ImportReport(
             total=len(rows),
             created=created,
+            updated=updated,
             skipped=skipped,
             errors=errors,
             rows=results,

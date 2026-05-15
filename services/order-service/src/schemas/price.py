@@ -24,7 +24,6 @@ class PriceCreate(BaseModel):
     product_id: uuid.UUID
     prime_cost_eur: Optional[Decimal] = None
     fx_rate_used: Optional[Decimal] = None
-    price_multiplier_id: Optional[uuid.UUID] = None
     values: Optional[list] = None
     start_at: Optional[datetime] = None
 
@@ -35,9 +34,8 @@ class PriceResponse(BaseModel):
     product_id: uuid.UUID
     prime_cost_eur: Optional[Decimal] = None
     fx_rate_used: Optional[Decimal] = None
-    price_multiplier_id: Optional[uuid.UUID] = None
-    values: Optional[list] = None
+    values: list | None = None
     previous_price_id: Optional[uuid.UUID] = None
     next_price_id: Optional[uuid.UUID] = None
-    start_at: Optional[datetime] = None
-    finish_at: Optional[datetime] = None
+    start_at: datetime | None = None
+    finish_at: datetime | None = None

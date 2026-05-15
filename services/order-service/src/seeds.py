@@ -66,6 +66,7 @@ async def _seed_measurement_units(db: AsyncSession) -> None:
         {"measurement_unit": "м²", "classifier": "MTK"},
         {"measurement_unit": "м.п.", "classifier": "MTR"},
         {"measurement_unit": "компл", "classifier": "SET"},
+        {"measurement_unit": "мм", "classifier": "MM"},
     ]
     for entry in entries:
         result = await db.execute(

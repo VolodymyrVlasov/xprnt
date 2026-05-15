@@ -19,6 +19,37 @@ def _parse_decimal(value: str) -> Decimal | None:
         return None
 
 
+def _parse_size_field(raw: str) -> Decimal | None:
+    """
+    Returns Decimal if raw is a single valid number (after comma→dot replace).
+    Returns None if:
+      - raw is empty or None
+      - raw contains '-' (range like "61-107")
+      - not parseable as Decimal
+    """
+    if not raw:
+        return None
+    normalized = str(raw).strip().replace(",", ".")
+    if not normalized:
+        return None
+    if "-" in normalized:
+        return None
+    try:
+        return Decimal(normalized)
+    except Exception:
+        return None
+
+
+def _parse_article(raw: str) -> int | None:
+    v = str(raw).strip()
+    if not v:
+        return None
+    try:
+        return int(v)
+    except (ValueError, TypeError):
+        return None
+
+
 def _row_to_model(row: dict, row_num: int) -> ImportProductRow:
     # Normalize keys: strip whitespace, lowercase
     normalized = {k.strip().lower(): v for k, v in row.items()}
@@ -28,16 +59,16 @@ def _row_to_model(row: dict, row_num: int) -> ImportProductRow:
 
     name = get("name")
     category = get("category")
-    measurement_unit = get("measurementunit")
 
     if not name:
         raise ValueError(f"Row {row_num}: missing required field 'name'")
     if not category:
         raise ValueError(f"Row {row_num}: missing required field 'category'")
-    if not measurement_unit:
-        raise ValueError(f"Row {row_num}: missing required field 'measurementUnit'")
+
+    measurement_unit = get("measurementunit") or None  # None → service defaults to "шт"
 
     return ImportProductRow(
+        article=_parse_article(get("article")),
         name=name,
         shortName=get("shortname") or None,
         description=get("description") or None,
@@ -45,10 +76,12 @@ def _row_to_model(row: dict, row_num: int) -> ImportProductRow:
         isDeliverable=_parse_bool(get("isdeliverable") or "true"),
         inStock=_parse_bool(get("instock") or "true"),
         measurementUnit=measurement_unit,
-        sku=get("sku") or None,
         primeCostEUR=_parse_decimal(get("primecosteur")),
-        fxRateUsed=_parse_decimal(get("fxrateused")),
+        width=_parse_size_field(get("width")),
+        height=_parse_size_field(get("height")),
+        rollWidth=_parse_size_field(get("rollwidth")),
         price_1=_parse_decimal(get("price_1")),
+        price_5=_parse_decimal(get("price_5")),
         price_10=_parse_decimal(get("price_10")),
         price_20=_parse_decimal(get("price_20")),
         price_50=_parse_decimal(get("price_50")),
@@ -58,7 +91,7 @@ def _row_to_model(row: dict, row_num: int) -> ImportProductRow:
 
 def parse_csv(content: bytes) -> list[ImportProductRow]:
     text = content.decode("utf-8-sig")  # handle BOM
-    reader = csv.DictReader(io.StringIO(text))
+    reader = csv.DictReader(io.StringIO(text), delimiter=";")
     rows: list[ImportProductRow] = []
     for i, row in enumerate(reader, start=2):  # row 1 = header
         name = str(row.get("name", "") or "").strip()
