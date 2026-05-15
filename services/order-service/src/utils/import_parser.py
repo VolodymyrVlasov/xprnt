@@ -28,14 +28,13 @@ def _row_to_model(row: dict, row_num: int) -> ImportProductRow:
 
     name = get("name")
     category = get("category")
-    measurement_unit = get("measurementunit")
 
     if not name:
         raise ValueError(f"Row {row_num}: missing required field 'name'")
     if not category:
         raise ValueError(f"Row {row_num}: missing required field 'category'")
-    if not measurement_unit:
-        raise ValueError(f"Row {row_num}: missing required field 'measurementUnit'")
+
+    measurement_unit = get("measurementunit") or None  # None → service defaults to "шт"
 
     return ImportProductRow(
         name=name,
@@ -47,8 +46,8 @@ def _row_to_model(row: dict, row_num: int) -> ImportProductRow:
         measurementUnit=measurement_unit,
         sku=get("sku") or None,
         primeCostEUR=_parse_decimal(get("primecosteur")),
-        fxRateUsed=_parse_decimal(get("fxrateused")),
         price_1=_parse_decimal(get("price_1")),
+        price_5=_parse_decimal(get("price_5")),
         price_10=_parse_decimal(get("price_10")),
         price_20=_parse_decimal(get("price_20")),
         price_50=_parse_decimal(get("price_50")),

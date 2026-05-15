@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +31,9 @@ class Settings(BaseSettings):
 
     # Internal service URLs
     DESIGN_SERVICE_URL: str = "http://design-service:8001"
+
+    # Exchange rate fallback (EUR → UAH)
+    eur_uah_rate: Decimal = Decimal("43.50")
 
 
 settings = Settings()

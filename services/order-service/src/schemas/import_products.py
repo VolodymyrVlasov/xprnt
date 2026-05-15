@@ -11,11 +11,11 @@ class ImportProductRow(BaseModel):
     category: str                    # resolved by name → id
     isDeliverable: bool = True
     inStock: bool = True
-    measurementUnit: str             # resolved by name → id
+    measurementUnit: Optional[str] = None  # defaults to "шт" if not provided
     sku: Optional[str] = None
     primeCostEUR: Optional[Decimal] = None
-    fxRateUsed: Optional[Decimal] = None
     price_1: Optional[Decimal] = None
+    price_5: Optional[Decimal] = None
     price_10: Optional[Decimal] = None
     price_20: Optional[Decimal] = None
     price_50: Optional[Decimal] = None
