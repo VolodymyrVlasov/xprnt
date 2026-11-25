@@ -54,3 +54,9 @@ logs/
 
 # Never ignore
 !.env.example
+
+# Claude Code
+.claude/
+
+# Internal infrastructure docs
+OFFICE_SERVER.md
