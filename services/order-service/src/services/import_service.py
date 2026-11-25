@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -17,6 +17,23 @@ class ImportService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._mm_unit_id: uuid.UUID | None = None
+        # lower(trim(name)) -> matching category ids; cached per import
+        self._category_cache: dict[str, list[uuid.UUID]] = {}
+
+    async def _resolve_category_id(self, raw_name: str) -> uuid.UUID:
+        key = raw_name.strip().lower()
+        ids = self._category_cache.get(key)
+        if ids is None:
+            result = await self.db.execute(
+                select(Categories.id).where(func.lower(func.trim(Categories.name)) == key)
+            )
+            ids = list(result.scalars().all())
+            self._category_cache[key] = ids
+        if not ids:
+            raise ValueError(f"Category not found: {raw_name.strip()}")
+        if len(ids) > 1:
+            raise ValueError(f"Ambiguous category: {raw_name.strip()} ({len(ids)} matches)")
+        return ids[0]
 
     async def _resolve_mm_unit(self) -> uuid.UUID:
         if self._mm_unit_id is not None:
@@ -70,12 +87,7 @@ class ImportService:
             await self.db.execute(text("SAVEPOINT sp_row"))
             try:
                 # --- Resolve category ---
-                cat_result = await self.db.execute(
-                    select(Categories).where(Categories.name == row.category.strip())
-                )
-                category = cat_result.scalar_one_or_none()
-                if not category:
-                    raise ValueError(f"Category not found: {row.category}")
+                category_id = await self._resolve_category_id(row.category)
 
                 # --- Resolve measurementUnit ---
                 unit_name = row.measurementUnit.strip() if row.measurementUnit else DEFAULT_MEASUREMENT_UNIT
@@ -123,7 +135,7 @@ class ImportService:
                     existing_product.description = row.description
                     existing_product.is_deliverable = row.isDeliverable
                     existing_product.in_stock = row.inStock
-                    existing_product.category_id = category.id
+                    existing_product.category_id = category_id
                     existing_product.measurement_unit_id = unit.id
                     if size_id:
                         existing_product.size_id = size_id
@@ -160,7 +172,7 @@ class ImportService:
                         name=row.name,
                         short_name=row.shortName,
                         description=row.description,
-                        category_id=category.id,
+                        category_id=category_id,
                         is_deliverable=row.isDeliverable,
                         in_stock=row.inStock,
                         measurement_unit_id=unit.id,
